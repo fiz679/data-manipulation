@@ -2,9 +2,14 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="Data Manipulation Using Pandas", layout="wide")
+st.set_page_config(
+    page_title="Data Manipulation Using Pandas",
+    page_icon="📊",
+    layout="wide"
+)
 
 st.title("📊 Data Manipulation Using Pandas")
+st.markdown("Upload a CSV file to perform data analysis and visualization.")
 
 uploaded_file = st.file_uploader(
     "Upload CSV File",
@@ -13,59 +18,100 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file is not None:
 
-    df = pd.read_csv(uploaded_file)
+    try:
+        df = pd.read_csv(uploaded_file)
 
-    st.header("Dataset")
-    st.dataframe(df)
+        st.success("Dataset uploaded successfully!")
 
-    st.header("Dataset Information")
+        st.subheader("Dataset Preview")
+        st.dataframe(df, use_container_width=True)
 
-    col1, col2 = st.columns(2)
+        st.subheader("Dataset Information")
 
-    with col1:
-        st.write("Rows :", df.shape[0])
-        st.write("Columns :", df.shape[1])
+        col1, col2, col3 = st.columns(3)
 
-    with col2:
+        col1.metric("Rows", df.shape[0])
+        col2.metric("Columns", df.shape[1])
+        col3.metric("Missing Values", int(df.isnull().sum().sum()))
+
+        st.subheader("Column Data Types")
         st.write(df.dtypes)
 
-    st.header("Summary Statistics")
-    st.write(df.describe())
+        st.subheader("Summary Statistics")
+        st.write(df.describe(include="all"))
 
-    st.header("Filter Data")
+        st.subheader("Missing Values")
+        st.write(df.isnull().sum())
 
-    month = st.selectbox(
-        "Select Month",
-        ["All"] + list(df["Month"].unique())
-    )
+        st.subheader("Duplicate Rows")
+        st.write(f"Duplicate Rows: {df.duplicated().sum()}")
 
-    if month != "All":
-        df = df[df["Month"] == month]
+        st.subheader("Filter Dataset")
 
-    store = st.selectbox(
-        "Select Store",
-        ["All"] + list(df["Store"].unique())
-    )
+        filtered_df = df.copy()
 
-    if store != "All":
-        df = df[df["Store"] == store]
+        for column in filtered_df.columns:
+            if filtered_df[column].dtype == "object":
+                values = st.multiselect(
+                    f"Filter {column}",
+                    filtered_df[column].dropna().unique()
+                )
 
-    st.dataframe(df)
+                if values:
+                    filtered_df = filtered_df[
+                        filtered_df[column].isin(values)
+                    ]
 
-    st.header("Sales Summary")
+        st.subheader("Filtered Dataset")
+        st.dataframe(filtered_df, use_container_width=True)
 
-    st.metric("Total Sales", int(df["Sales"].sum()))
-    st.metric("Average Sales", round(df["Sales"].mean(),2))
+        if "Sales" in filtered_df.columns:
 
-    st.header("Bar Chart")
+            st.subheader("Sales Analysis")
 
-    st.bar_chart(df.set_index("Store")["Sales"])
+            c1, c2, c3 = st.columns(3)
 
-    st.header("Line Chart")
+            c1.metric("Total Sales", int(filtered_df["Sales"].sum()))
+            c2.metric("Average Sales", round(filtered_df["Sales"].mean(), 2))
+            c3.metric("Maximum Sales", int(filtered_df["Sales"].max()))
 
-    chart = df.groupby("Month")["Sales"].sum()
+            if "Store" in filtered_df.columns:
 
-    st.line_chart(chart)
+                st.subheader("Sales by Store")
+
+                sales_store = (
+                    filtered_df
+                    .groupby("Store")["Sales"]
+                    .sum()
+                )
+
+                st.bar_chart(sales_store)
+
+            if "Month" in filtered_df.columns:
+
+                st.subheader("Monthly Sales")
+
+                sales_month = (
+                    filtered_df
+                    .groupby("Month")["Sales"]
+                    .sum()
+                )
+
+                st.line_chart(sales_month)
+
+        st.subheader("Download Filtered Dataset")
+
+        csv = filtered_df.to_csv(index=False).encode("utf-8")
+
+        st.download_button(
+            label="Download CSV",
+            data=csv,
+            file_name="filtered_data.csv",
+            mime="text/csv"
+        )
+
+    except Exception as e:
+        st.error(f"Error: {e}")
 
 else:
-    st.info("Upload a CSV file to begin.")
+    st.info("Please upload a CSV file to begin.")
